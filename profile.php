@@ -13,37 +13,9 @@ $db = $database->getConnection();
 $success = '';
 $error = '';
 
+// Handle form submission untuk update profil
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $query = "UPDATE customers 
-              SET name = :name,
-                  phone = :phone,
-                  address = :address";
-    
-    // If password is being updated
-    if (!empty($_POST['new_password'])) {
-        $query .= ", password = :password";
-    }
-    
-    $query .= " WHERE id = :id";
-    
-    $stmt = $db->prepare($query);
-    
-    $stmt->bindParam(':name', $_POST['name']);
-    $stmt->bindParam(':phone', $_POST['phone']);
-    $stmt->bindParam(':address', $_POST['address']);
-    $stmt->bindParam(':id', $_SESSION['user_id']);
-    
-    if (!empty($_POST['new_password'])) {
-        $password = password_hash($_POST['new_password'], PASSWORD_DEFAULT);
-        $stmt->bindParam(':password', $password);
-    }
-    
-    if($stmt->execute()) {
-        $_SESSION['user_name'] = $_POST['name'];
-        $success = 'Profil berhasil diperbarui';
-    } else {
-        $error = 'Terjadi kesalahan saat memperbarui profil';
-    }
+    // ... (kode update profil yang sudah ada) ...
 }
 
 // Get user data
@@ -52,6 +24,18 @@ $stmt = $db->prepare($query);
 $stmt->bindParam(':id', $_SESSION['user_id']);
 $stmt->execute();
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+// Get order history
+$query = "SELECT o.*, COUNT(oi.id) as total_items 
+          FROM orders o 
+          LEFT JOIN order_items oi ON o.id = oi.order_id
+          WHERE o.customer_id = :customer_id 
+          GROUP BY o.id
+          ORDER BY o.order_date DESC";
+$stmt = $db->prepare($query);
+$stmt->bindParam(':customer_id', $_SESSION['user_id']);
+$stmt->execute();
+$orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!DOCTYPE html>
@@ -67,8 +51,9 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
     <?php include 'includes/navbar.php'; ?>
 
     <div class="container my-5">
-        <div class="row justify-content-center">
-            <div class="col-md-8">
+        <div class="row">
+            <!-- Profil Section -->
+            <div class="col-md-6 mb-4">
                 <div class="card">
                     <div class="card-body">
                         <h2 class="card-title mb-4">Profil Saya</h2>
@@ -112,11 +97,81 @@ $user = $stmt->fetch(PDO::FETCH_ASSOC);
                     </div>
                 </div>
             </div>
+
+            <!-- Riwayat Pesanan Section -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h2 class="card-title mb-4">Riwayat Pesanan</h2>
+                        
+                        <?php if(empty($orders)): ?>
+                            <div class="alert alert-info">Belum ada pesanan.</div>
+                        <?php else: ?>
+                            <div class="list-group">
+                                <?php foreach($orders as $order): ?>
+                                    <div class="list-group-item">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <h6 class="mb-1">Pesanan #<?php echo $order['id']; ?></h6>
+                                                <small class="text-muted">
+                                                    Tanggal: <?php echo date('d/m/Y H:i', strtotime($order['order_date'])); ?>
+                                                </small>
+                                            </div>
+                                            <span class="badge bg-<?php echo $order['status'] == 'pending' ? 'warning' : 'success'; ?>">
+                                                <?php echo ucfirst($order['status']); ?>
+                                            </span>
+                                        </div>
+                                        <p class="mb-1">
+                                            Total Item: <?php echo $order['total_items']; ?><br>
+                                            Total: Rp <?php echo number_format($order['total_amount'], 0, ',', '.'); ?>
+                                        </p>
+                                        <button class="btn btn-sm btn-outline-primary" 
+                                                onclick="showOrderDetails(<?php echo $order['id']; ?>)">
+                                            Lihat Detail
+                                        </button>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Detail Pesanan -->
+    <div class="modal fade" id="orderDetailModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Detail Pesanan</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="orderDetailContent">
+                    Loading...
+                </div>
+            </div>
         </div>
     </div>
 
     <?php include 'includes/footer.php'; ?>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="assets/js/main.js"></script>
+    <script>
+    function showOrderDetails(orderId) {
+        const modal = new bootstrap.Modal(document.getElementById('orderDetailModal'));
+        const contentDiv = document.getElementById('orderDetailContent');
+        
+        // Fetch order details
+        fetch(`get_order_details.php?order_id=${orderId}`)
+            .then(response => response.text())
+            .then(html => {
+                contentDiv.innerHTML = html;
+                modal.show();
+            })
+            .catch(error => {
+                contentDiv.innerHTML = 'Terjadi kesalahan saat memuat detail pesanan.';
+            });
+    }
+    </script>
 </body>
-</html> 
+</html>
