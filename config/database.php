@@ -2,8 +2,8 @@
 class Database {
     private $host = "localhost";
     private $db_name = "buku";
-    private $username = "root";
-    private $password = "";
+    private $username = "bukuuser";
+    private $password = "password123";
     public $conn;
 
     public function getConnection() {
@@ -15,6 +15,7 @@ class Database {
                 $this->username,
                 $this->password
             );
+            $this->conn->exec("set names utf8");
             $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             return $this->conn;
         } catch(PDOException $e) {
